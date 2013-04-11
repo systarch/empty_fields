@@ -9,6 +9,10 @@
  */
 function empty_fields_field_formatter_info_alter(&$info) {
   foreach ($info as $formatter_key => &$formatter) {
+    // Some formatters do not have any settings.
+    if (!isset($formatter['settings'])) {
+      $formatter['settings'] = array();
+    }
     $formatter['settings'] += array(
       'display_empty' => '',
       'custom_text' => '',
