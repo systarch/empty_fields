@@ -1,268 +1,94 @@
 <?php
+
 /**
  * @file
  * Contains the implementation for the empty_fields module.
  */
 
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Field\FormatterInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Element;
+use Drupal\Core\Routing\RouteMatchInterface;
+
 /**
- * Implements hook_field_formatter_info_alter().
+ * Implements hook_help().
  */
-function empty_fields_field_formatter_info_alter(&$info) {
-  foreach ($info as $formatter_key => &$formatter) {
-    $formatter['settings']['empty_fields_handler'] = '';
-    foreach (empty_fields_plugins() as $class_name => $title) {
-      if (class_exists($class_name)) {
-        $plugin = new $class_name();
-        foreach ($plugin->defaults() as $field_id => $default) {
-          $field_name = empty_fields_generate_field_name($field_id, $class_name);
-          $formatter['settings'][$field_name] = $default;
-        }
-      }
-    }
+function empty_fields_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.empty_fields':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('Provides a way to show empty fields that would otherwise be hidden.') . '</p>';
+      return $output;
   }
 }
 
 /**
- * Loads a plugin from static cache if available.
- *
- * @param array $view_mode_settings
- *   The display settings for the view mode.
- *
- * @return emptyfieldHandler
- *   The emptyFieldHandler object for the instance's entity.
+ * Implements hook_field_formatter_third_party_settings_form().
  */
-function empty_fields_load_plugin($instance, $view_mode_settings) {
-  static $plugins;
-  $field_name = isset($instance['field_name']) ? $instance['field_name'] : 'custom';
-  $entity_type = isset($instance['entity_type']) ? $instance['entity_type'] : 'custom';
-  $bundle = isset($instance['bundle']) ? $instance['bundle'] : 'custom';
-  $key = $entity_type . '-' . $bundle . '-' . $field_name;
-
-  if (empty($plugins[$key]) && !empty($view_mode_settings['empty_fields_handler']) && class_exists($view_mode_settings['empty_fields_handler'])) {
-    $plugin_type = $view_mode_settings['empty_fields_handler'];
-    $plugin = new $plugin_type();
-    foreach ($plugin->defaults() as $field_id => $default) {
-      $field_name = empty_fields_generate_field_name($field_id, $plugin_type);
-      $plugin->options[$field_id] = !empty($view_mode_settings[$field_name]) ? $view_mode_settings[$field_name] : $default;
-    }
-    // Don't cache plugins with missing instance parameters.
-    if ($key == 'custom-custom-custom') {
-      return $plugin;
-    }
-    $plugins[$key] = $plugin;
-  }
-  return isset($plugins[$key]) ? $plugins[$key] : FALSE;
-}
-
-/**
- * Utility: generate a field id to be used in the display of the plugin's form.
- *
- * @param string $field_id
- *   The id of the field as specified in the plugin.
- *
- * @param string $class_name
- *   The configured emptyFieldHandler for the field instance.
- *
- * @return string
- *   The id of the field as displayed to the user.
- */
-function empty_fields_generate_field_name($field_id, $class_name) {
-  return 'empty_fields_' . drupal_strtolower($class_name) . '_' . $field_id;
-}
-
-/**
- * Implements hook_empty_fields().
- */
-function empty_fields_empty_fields() {
-  $items = array(
-    'EmptyFieldText' => array(
-      'title' => t('Display Custom Text'),
-    ),
-    'EntityLabelEmptyFieldHandler' => array(
-      'title' => t('Display Entity Label'),
+function empty_fields_field_formatter_third_party_settings_form(FormatterInterface $plugin, FieldDefinitionInterface $field_definition, $view_mode, $form, FormStateInterface $form_state) {
+  // @todo Implement plugin manager.
+  $element['handler'] = array(
+    '#type' => 'select',
+    '#title' => t('Empty display options'),
+    '#default_value' => $plugin->getThirdPartySetting('empty_fields', 'handler', ''),
+    '#options' => array(
+      '' => t('Exclude field from output'),
+      // @todo Add other plugins from manager and forms with form() method.
+      'nbsp' => t('Empty space'),
     ),
   );
-  return $items;
-}
-
-/**
- * Utility: find plugins provided by modules implementing hook_empty_fields().
- *
- * @todo
- *   Autoloading of subclasses or research module_invoke_all's cache.
- */
-function empty_fields_plugins() {
-  static $empty_fields_plugins;
-  $empty_fields_plugins = empty($efplugins) ? module_invoke_all('empty_fields') : $efplugins;
-  return $empty_fields_plugins;
+  return $element;
 }
 
 /**
  * Implements hook_field_formatter_settings_summary_alter().
  */
 function empty_fields_field_formatter_settings_summary_alter(&$summary, $context) {
-  $display = $context['instance']['display'][$context['view_mode']];
-  $settings = $display['settings'];
-
-  if ($plugin = empty_fields_load_plugin($context['instance'], $settings)) {
-    $summary .= $plugin->summaryText();
-  }
-  elseif (!empty($settings['empty_fields_handler'])) {
-    $summary .=  '<br />' . t('Missing empty field plugin: @plugin', array('@plugin' => $settings['empty_fields_handler']));
-  }
-  else {
-    $summary .= '<br />' . t('Empty field is hidden');
+  // @todo Get summary from handler with summaryText() method.
+  $handler = $context['formatter']->getThirdPartySetting('empty_fields', 'handler', '');
+  if ($handler === 'nbsp') {
+    $summary[] = t('Empty text displayed.');
   }
 }
 
 /**
- * Implements hook_field_formatter_settings_form_alter().
- *
- * Generates the formatter settings forms from the available plugins.
+ * Implements hook_entity_display_build_alter().
  */
-function empty_fields_field_formatter_settings_form_alter(&$settings_form, $context) {
-  $field = $context['field'];
-  $display = $context['instance']['display'][$context['view_mode']];
-  $settings = $display['settings'];
-
-  $settings_form['empty_fields_handler'] = array(
-    '#type' => 'select',
-    '#title' => t('Empty display options'),
-    '#default_value' => $settings['empty_fields_handler'],
-    '#options' => array(
-      '' => t('Exclude field from output'),
-    ),
-  );
-
-  foreach (empty_fields_plugins() as $class_name => $class_settings) {
-    $settings_form['empty_fields_handler']['#options'][$class_name] = $class_settings['title'];
-    $plugin = new $class_name();
-    foreach ($plugin->form($context) as $field_id => $field) {
-      $field_name = empty_fields_generate_field_name($field_id, $class_name);
-      $plugin->options[$field_id] = $settings[$field_name];
-      $field['#default_value'] = $settings[$field_name];
-      if ($context['instance']['entity_type'] == 'ctools' && $context['view_mode'] == '_custom') {
-        // The Empty display options element name on Views field options.
-        $select_name = 'options[settings][empty_fields_handler]';
-      }
-      else {
-        // The Empty display options element name on field display settings.
-        $select_name = 'fields[' . $context['field']['field_name'] . '][settings_edit_form][settings][empty_fields_handler]';
-      }
-      $field['#states'] = array(
-        'visible' => array(
-          ':input[name="' . $select_name . '"]' => array('value' => $class_name),
-        ),
-      );
-      $settings_form[$field_name] = $field;
-    }
-  }
-}
-
-/**
- * Implements hook_field_attach_view_alter().
- *
- * Overwrites the output of field.
- */
-function empty_fields_field_attach_view_alter(&$output, $context) {
-  if (empty($context['view_mode']) || empty($context['display'])) {
-    return;
-  }
-
-  // This is called per field without field context, so this flag prevents
-  // excessive processing on the entity.
-  if (!empty($context['entity']->empty_fields_processed)) {
-    return;
-  }
-  $context['entity']->empty_fields_processed = TRUE;
-
-  $entity_type = $context['entity_type'];
+function empty_fields_entity_display_build_alter(&$build, $context) {
+  /** @var \Drupal\Core\Entity\EntityInterface $entity */
   $entity = $context['entity'];
-  $view_mode = $context['view_mode'];
-
-  list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
-  $rendered_elements = element_children($output);
-
-  foreach (field_info_instances($entity_type, $bundle) as $field_name => $instance) {
-    // Do not add field that is hidden in current display.
-    $display = field_get_display($instance, $view_mode, $entity);
-    if ($display['type'] == 'hidden' || empty($display['settings']['empty_fields_handler'])) {
-      continue;
-    }
-
-    // Some field types still render, so double check that these have content.
-    // To date, this is limited to the text fields that always save even if
-    // empty.
-    $field = field_info_field($field_name);
-
-    // Provide additional context for the handlers.
-    $context['field_name'] = $field_name;
-    $context['field'] = $field;
-    $context['instance'] = $instance;
-
-    // But firstly, check if the user can access the field.
-    if (!field_access('view', $field, $entity_type, $entity)) {
-      continue;
-    }
-
-    $plugin_type = $display['settings']['empty_fields_handler'];
-
-    if (in_array($field_name, $rendered_elements)) {
-      switch ($field['type']) {
-        case 'text':
-        case 'text_long':
-        case 'text_with_summary':
-        case 'text_summary_or_trimmed':
-          foreach (element_children($output[$field_name]) as $delta) {
-            if (!empty($output[$field_name][$delta]['#markup']) || drupal_strlen($output[$field_name][$delta]['#markup'])) {
-              continue 3;
-            }
-          }
-          break;
-
-        default:
-          continue 2;
-
+  /** @var \Drupal\Core\Entity\Display\EntityViewDisplayInterface $display */
+  $display = $context['display'];
+  foreach (Element::children($build) as $field_name) {
+    if ($entity->get($field_name)->isEmpty() && ($handler = $display->getRenderer($field_name)->getThirdPartySetting('empty_fields', 'handler'))) {
+      // @todo Get render with react() method.
+      if ($handler === 'nbsp') {
+        $markup = ['#markup' => '&nbsp;'];
       }
-    }
+      /** @var \Drupal\Core\Field\FieldDefinitionInterface $definition */
+      $definition = $entity->get($field_name)->getFieldDefinition();
+      $component = $display->getComponent($field_name);
 
-    // Load the configured plugin.
-    $plugin = empty_fields_load_plugin($instance, $display['settings']);
-
-    if ($plugin) {
-      $markup = $plugin->react($context);
-      // Do not render empty values.
-      if (!empty($markup) || drupal_strlen($markup)) {
-        if (empty($context['language'])) {
-          $language = field_language($entity_type, $entity, $field_name);
-        }
-        else {
-          $language = $context['language'];
-        }
-        $output[$field_name] = array(
+      $build[$field_name] = [
           '#theme' => 'field',
-          '#title' => $instance['label'],
-          '#label_display' => $display['label'],
-          '#weight' => $display['weight'],
-          '#field_type' => $field['type'],
-          '#field_name' => $field_name,
-          '#bundle' => $bundle,
+          '#title' => $definition->getLabel(),
+          '#label_display' => $component['label'],
+          '#view_mode' => $context['view_mode'],
+          '#language' => $entity->get($field_name)->getLangcode(),
+          '#field_name' => $definition->getName(),
+          '#field_type' => 'string',
+          '#field_translatable' => $definition->isTranslatable(),
+          '#entity_type' => $entity->getEntityTypeId(),
+          '#bundle' => $entity->bundle(),
           '#object' => $entity,
-          '#entity_type' => $entity_type,
-          '#view_mode' => $view_mode,
-          '#language' => $language,
-          '#formatter' => $display['type'],
-          '#items' => array(
-            0 => array('value' => $markup),
-          ),
-          0 => array(
-            '#markup' => $markup,
-          ),
-        );
-
-        // Allow plugins to alter output.
-        $plugin->alterOutput($output[$field_name], $context);
-      }
+          '#items' => [(object) ['_attributes' => []]],
+          '#is_multiple' => FALSE,
+          // Use simple formatter.
+          '#formatter' => 'string',
+          '0' => $markup,
+        ] + $build[$field_name];
     }
   }
 }
