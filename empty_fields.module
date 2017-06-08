@@ -266,3 +266,25 @@ function empty_fields_field_attach_view_alter(&$output, $context) {
     }
   }
 }
+
+/**
+ * Implements hook_i18n_string_list_TEXTGROUP_alter().
+ *
+ * This is done on behalf of the text plugin.
+ */
+function empty_fields_i18n_string_list_field_alter(&$strings, $type = NULL, $instance = NULL) {
+  if ($type == 'field_instance') {
+    if (!empty($instance['display'])) {
+      foreach ($instance['display'] as $view_mode => $display) {
+        if (isset($instance['display'][$view_mode]['settings']['empty_fields_handler'])
+          && $instance['display'][$view_mode]['settings']['empty_fields_handler'] === 'EmptyFieldText'
+          && !empty($display['settings']['empty_fields_emptyfieldtext_empty_text'])) {
+          $strings['field'][$instance['field_name']][$instance['bundle']]['empty_fields:' . $view_mode . ':text:empty_text'] = array(
+            'string' => $display['settings']['empty_fields_emptyfieldtext_empty_text'],
+            'title' => 'Empty text',
+          );
+        }
+      }
+    }
+  }
+}

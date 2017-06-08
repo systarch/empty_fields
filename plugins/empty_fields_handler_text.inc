@@ -50,8 +50,12 @@ class EmptyFieldText extends EmptyFieldHandler {
       $context['entity_type'] => $context['entity'],
       'user' => $user,
     );
-    $text = token_replace($this->options['empty_text'], $args, array('clear' => TRUE));
-    return filter_xss_admin(t('!empty_text', array('!empty_text' => $text)));
+    $text = $this->options['empty_text'];
+    if (module_exists('i18n_field')) {
+      $text = i18n_string('field:' . $context['field_name'] . ':' . $context['instance']['bundle'] . ':' . 'empty_fields:' . $context['view_mode'] . ':text:empty_text', $text, array('langcode' => $context['language']));
+    }
+    $text = token_replace($text, $args, array('clear' => TRUE));
+    return filter_xss_admin($text);
   }
 
   /**
