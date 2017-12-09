@@ -91,6 +91,7 @@ function empty_fields_entity_display_build_alter(&$build, $context) {
           '#object' => $entity,
           '#items' => [(object) ['_attributes' => []]],
           '#is_multiple' => FALSE,
+          '#attributes' => ['class' => ['empty-fields', "empty-fields__$handler"]],
           // Use simple formatter.
           '#formatter' => 'string',
           '0' => $plugin->react($context),
