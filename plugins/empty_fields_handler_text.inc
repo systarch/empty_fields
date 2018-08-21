@@ -67,4 +67,5 @@ class EmptyFieldText extends EmptyFieldHandler {
   public function summaryText() {
     return t('Empty Text: @empty_text', array('@empty_text' => $this->options['empty_text']));
   }
+
 }

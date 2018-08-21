@@ -55,7 +55,7 @@ class EntityLabelEmptyFieldHandler extends EmptyFieldHandler {
         if ($url = entity_uri($context['entity_type'], $context['entity'])) {
           return l($title, $url['path'], $url['options']);
         }
-        // Fall through...
+        // Fall through.
 
       case 'text':
       default:
@@ -79,4 +79,5 @@ class EntityLabelEmptyFieldHandler extends EmptyFieldHandler {
         return t('Uses entity label if empty');
     }
   }
+
 }

@@ -75,6 +75,7 @@ class CurrentTimeEmptyFieldText extends EmptyFieldHandler {
   public function summaryText() {
     return t('Empty Text: current time');
   }
+
 }
 
 ?>

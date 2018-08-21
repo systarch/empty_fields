@@ -32,12 +32,12 @@ function empty_fields_field_formatter_info_alter(&$info) {
  * @return emptyfieldHandler
  *   The emptyFieldHandler object for the instance's entity.
  */
-function empty_fields_load_plugin($instance, $view_mode_settings) {
+function empty_fields_load_plugin($instance, $view_mode_settings, $view_mode = 'default') {
   static $plugins;
   $field_name = isset($instance['field_name']) ? $instance['field_name'] : 'custom';
   $entity_type = isset($instance['entity_type']) ? $instance['entity_type'] : 'custom';
   $bundle = isset($instance['bundle']) ? $instance['bundle'] : 'custom';
-  $key = $entity_type . '-' . $bundle . '-' . $field_name;
+  $key = $entity_type . '-' . $bundle . '-' . $field_name . '-' . $view_mode;
 
   if (empty($plugins[$key]) && !empty($view_mode_settings['empty_fields_handler']) && class_exists($view_mode_settings['empty_fields_handler'])) {
     $plugin_type = $view_mode_settings['empty_fields_handler'];
@@ -60,7 +60,6 @@ function empty_fields_load_plugin($instance, $view_mode_settings) {
  *
  * @param string $field_id
  *   The id of the field as specified in the plugin.
- *
  * @param string $class_name
  *   The configured emptyFieldHandler for the field instance.
  *
@@ -105,14 +104,14 @@ function empty_fields_field_formatter_settings_summary_alter(&$summary, $context
   $display = $context['instance']['display'][$context['view_mode']];
   $settings = $display['settings'];
 
-  if ($plugin = empty_fields_load_plugin($context['instance'], $settings)) {
+  if ($plugin = empty_fields_load_plugin($context['instance'], $settings, $context['view_mode'])) {
     $summary .= $plugin->summaryText();
     if (!empty($settings['empty_fields_empty_class'])) {
       $summary .= '<br />' . t('Add class when empty: @classes', array('@classes' => $settings['empty_fields_empty_class']));
     }
   }
   elseif (!empty($settings['empty_fields_handler'])) {
-    $summary .=  '<br />' . t('Missing empty field plugin: @plugin', array('@plugin' => $settings['empty_fields_handler']));
+    $summary .= '<br />' . t('Missing empty field plugin: @plugin', array('@plugin' => $settings['empty_fields_handler']));
   }
   else {
     $summary .= '<br />' . t('Empty field is hidden');
@@ -185,16 +184,16 @@ function empty_fields_field_attach_view_alter(&$output, $context) {
     return;
   }
 
-  // This is called per field without field context, so this flag prevents
-  // excessive processing on the entity.
-  if (!empty($context['entity']->empty_fields_processed)) {
-    return;
-  }
-  $context['entity']->empty_fields_processed = TRUE;
-
   $entity_type = $context['entity_type'];
   $entity = $context['entity'];
   $view_mode = $context['view_mode'];
+
+  // This is called per field without field context, so this flag prevents
+  // excessive processing on the entity. Processed once per view mode.
+  if (isset($entity->empty_fields_processed) && !empty($entity->empty_fields_processed[$view_mode])) {
+    return;
+  }
+  $entity->empty_fields_processed[$view_mode] = TRUE;
 
   list($id, $vid, $bundle) = entity_extract_ids($entity_type, $entity);
   $rendered_elements = element_children($output);
@@ -243,7 +242,7 @@ function empty_fields_field_attach_view_alter(&$output, $context) {
     }
 
     // Load the configured plugin.
-    $plugin = empty_fields_load_plugin($instance, $display['settings']);
+    $plugin = empty_fields_load_plugin($instance, $display['settings'], $view_mode);
 
     if ($plugin) {
       $markup = $plugin->react($context);

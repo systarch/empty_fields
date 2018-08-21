@@ -1,7 +1,7 @@
 <?php
 /**
  * @file
- * Contains the base class for emptyFieldHandlers
+ * Contains the base class for empty field handler classes.
  */
 
 /**
