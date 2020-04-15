@@ -67,7 +67,7 @@ interface EmptyFieldPluginInterface {
    *   - view_mode: The view mode; for example, 'full' or 'teaser'.
    *   - display: The EntityDisplay holding the display options.
    *
-   * @var array
+   * @return array
    *   Renderable array to display.
    */
   public function react($context);
