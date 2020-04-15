@@ -5,6 +5,9 @@
  * Contains the implementation for the empty_fields module.
  */
 
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityDisplayBase;
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FormatterInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -99,3 +102,73 @@ function empty_fields_entity_display_build_alter(&$build, $context) {
     }
   }
 }
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function empty_fields_entity_view_alter(array &$build, EntityInterface $entity, EntityViewDisplayInterface $display) {
+  $layout_builder_settings = $display->getThirdPartySettings('layout_builder');
+
+  if (isset($layout_builder_settings['sections'])) {
+    $sections = $layout_builder_settings['sections'];
+
+    /** @var \Drupal\layout_builder\Section $section */
+    foreach ($sections as $section_id => $section) {
+      $components = $section->getComponents();
+
+      /** @var \Drupal\layout_builder\SectionComponent $component */
+      foreach ($components as $component_id => $component){
+        $region = $component->getRegion();
+        $configuration = $component->get('configuration');
+        $weight = $component->getWeight();
+
+        if(isset($configuration['formatter']['third_party_settings']['empty_fields']['handler'])) {
+          $handler = $configuration['formatter']['third_party_settings']['empty_fields']['handler'];
+
+          list (, $entity_type_id, $bundle, $field_name) = explode(':', $configuration['id']);
+          $context['view_mode'] = EntityDisplayBase::CUSTOM_MODE;
+
+          // If field is empty
+          if ($entity->get($field_name)->isEmpty() && $handler) {
+            if ($handler === 'nbsp') {
+              $markup = ['#markup' => '&nbsp;'];
+            }
+
+            /** @var \Drupal\Core\Field\FieldDefinitionInterface $definition */
+            $definition = $entity->get($field_name)->getFieldDefinition();
+            $component = $display->getComponent($field_name);
+
+            // @todo: Would it be better to render field in a block like layout
+            // builder does?
+            $build["_layout_builder"][$section_id][$region][$component_id] = [
+              '#theme' => 'field',
+              '#title' => $definition->getLabel(),
+              '#label_display' => $component['label'],
+              '#view_mode' => $context['view_mode'],
+              '#language' => $entity->get($field_name)->getLangcode(),
+              '#field_name' => $definition->getName(),
+              '#field_type' => 'string',
+              '#field_translatable' => $definition->isTranslatable(),
+              '#entity_type' => $entity->getEntityTypeId(),
+              '#bundle' => $entity->bundle(),
+              '#object' => $entity,
+              '#weight' => $weight,
+              '#items' => [(object) [
+                '_attributes' => [
+                  'class' => [
+                    'empty-field'
+                  ]
+                ]
+              ]],
+              '#is_multiple' => FALSE,
+              // Use simple formatter.
+              '#formatter' => 'string',
+              '0' => $markup,
+            ];
+          }
+        }
+      }
+    }
+  }
+}
+
