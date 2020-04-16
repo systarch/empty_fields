@@ -57,6 +57,6 @@ abstract class EmptyFieldPluginBase extends PluginBase implements EmptyFieldPlug
   /**
    * {@inheritdoc}
    */
-  abstract public function react($content);
+  abstract public function react($content, $definition);
 
 }

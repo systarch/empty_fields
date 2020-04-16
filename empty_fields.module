@@ -10,9 +10,11 @@ use Drupal\Core\Entity\EntityDisplayBase;
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FormatterInterface;
+use Drupal\Core\Field\PluginSettingsInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element;
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\empty_fields\EmptyFieldPluginInterface;
 
 /**
  * Implements hook_help().
@@ -66,17 +68,18 @@ function empty_fields_field_formatter_settings_summary_alter(&$summary, $context
  *   - view_mode: The view mode; for example, 'full' or 'teaser'.
  *   - display: The EntityDisplay holding the display options.
  *
- * @param \Drupal\Core\Field\PluginSettingsInterface $handler
+ * @param FieldDefinitionInterface $definition
+ * @param $handler
  *
  * @return array
  *   Renderable array to display.
  */
-function _empty_fields_get_formatted_output($context, $handler) {
+function _empty_fields_get_formatted_output($context, FieldDefinitionInterface $definition, $handler) {
   /** @var \Drupal\Core\Plugin\DefaultPluginManager manager */
   $manager = \Drupal::service('plugin.manager.empty_fields');
-  /** @var \Drupal\empty_fields\EmptyFieldPluginInterface $plugin */
+  /** @var EmptyFieldPluginInterface $plugin */
   $plugin = $manager->createInstance($handler);
-  return $plugin->react($context);
+  return $plugin->react($context, $definition);
 }
 
 /**
@@ -96,25 +99,29 @@ function empty_fields_entity_display_build_alter(&$build, $context) {
       $definition = $entity->get($field_name)->getFieldDefinition();
       $component = $display->getComponent($field_name);
 
-      $build[$field_name] = [
-          '#theme' => 'field',
-          '#title' => $definition->getLabel(),
-          '#label_display' => $component['label'],
-          '#view_mode' => $context['view_mode'],
-          '#language' => $entity->get($field_name)->getLangcode(),
-          '#field_name' => $definition->getName(),
-          '#field_type' => 'string',
-          '#field_translatable' => $definition->isTranslatable(),
-          '#entity_type' => $entity->getEntityTypeId(),
-          '#bundle' => $entity->bundle(),
-          '#object' => $entity,
-          '#items' => [(object) ['_attributes' => []]],
-          '#is_multiple' => FALSE,
-          '#attributes' => ['class' => ['empty-fields', "empty-fields__$handler"]],
-          // Use simple formatter.
-          '#formatter' => 'string',
-          '0' => _empty_fields_get_formatted_output($context, $handler),
-        ] + $build[$field_name];
+      $formatted_empty_field = _empty_fields_get_formatted_output($context, $definition, $handler);
+
+      if (!empty($formatted_empty_field)) {
+        $build[$field_name] = [
+            '#theme' => 'field',
+            '#title' => $definition->getLabel(),
+            '#label_display' => $component['label'],
+            '#view_mode' => $context['view_mode'],
+            '#language' => $entity->get($field_name)->getLangcode(),
+            '#field_name' => $definition->getName(),
+            '#field_type' => 'string',
+            '#field_translatable' => $definition->isTranslatable(),
+            '#entity_type' => $entity->getEntityTypeId(),
+            '#bundle' => $entity->bundle(),
+            '#object' => $entity,
+            '#items' => [(object) ['_attributes' => []]],
+            '#is_multiple' => FALSE,
+            '#attributes' => ['class' => ['empty-fields', "empty-fields__$handler"]],
+            // Use simple formatter.
+            '#formatter' => 'string',
+            '0' => $formatted_empty_field,
+          ] + $build[$field_name];
+      }
     }
   }
 }
@@ -151,33 +158,40 @@ function empty_fields_entity_view_alter(array &$build, EntityInterface $entity, 
             $definition = $entity->get($field_name)->getFieldDefinition();
             $component = $display->getComponent($field_name);
 
-            // @todo: Would it be better to render field in a block like layout
-            // builder does?
-            $build["_layout_builder"][$section_id][$region][$component_id] = [
-              '#theme' => 'field',
-              '#title' => $definition->getLabel(),
-              '#label_display' => $component['label'],
-              '#view_mode' => $context['view_mode'],
-              '#language' => $entity->get($field_name)->getLangcode(),
-              '#field_name' => $definition->getName(),
-              '#field_type' => 'string',
-              '#field_translatable' => $definition->isTranslatable(),
-              '#entity_type' => $entity->getEntityTypeId(),
-              '#bundle' => $entity->bundle(),
-              '#object' => $entity,
-              '#weight' => $weight,
-              '#items' => [(object) [
-                '_attributes' => [
-                  'class' => [
-                    'empty-field'
+            $formatted_empty_field = _empty_fields_get_formatted_output($context, $definition, $handler);
+            if (!empty($formatted_empty_field)) {
+              // @todo: Would it be better to render field in a block like layout
+              // builder does?
+              $build["_layout_builder"][$section_id][$region][$component_id] = [
+                '#theme' => 'field',
+                '#title' => $definition->getLabel(),
+                '#label_display' => $component['label'],
+                '#view_mode' => $context['view_mode'],
+                '#language' => $entity->get($field_name)->getLangcode(),
+                '#field_name' => $definition->getName(),
+                '#field_type' => 'string',
+                '#field_translatable' => $definition->isTranslatable(),
+                '#entity_type' => $entity->getEntityTypeId(),
+                '#bundle' => $entity->bundle(),
+                '#object' => $entity,
+                '#weight' => $weight,
+                '#items' => [
+                  (object) [
+                    '_attributes' => [
+                      'class' => [
+                        'empty-field'
+                      ]
+                    ]
                   ]
-                ]
-              ]],
-              '#is_multiple' => FALSE,
-              // Use simple formatter.
-              '#formatter' => 'string',
-              '0' =>  _empty_fields_get_formatted_output($context, $handler),
-            ];
+                ],
+                '#is_multiple' => FALSE,
+                // Use simple formatter.
+                '#formatter' => 'string',
+                '0' => _empty_fields_get_formatted_output(
+                  $context, $definition, $handler
+                ),
+              ];
+            }
           }
         }
       }

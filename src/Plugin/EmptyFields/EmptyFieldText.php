@@ -40,7 +40,7 @@ class EmptyFieldText extends EmptyFieldPluginBase  {
   /**
    * {@inheritdoc}
    */
-  public function react($context) {
+  public function react($context, $definition) {
     $args = [
       $context['entity_type'] => $context['entity'],
       'user' => \Drupal::currentUser(),

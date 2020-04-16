@@ -67,9 +67,11 @@ interface EmptyFieldPluginInterface {
    *   - view_mode: The view mode; for example, 'full' or 'teaser'.
    *   - display: The EntityDisplay holding the display options.
    *
+   * @param \Drupal\Core\Field\FieldDefinitionInterface
+   *
    * @return array
    *   Renderable array to display.
    */
-  public function react($context);
+  public function react($context, $definition);
 
 }

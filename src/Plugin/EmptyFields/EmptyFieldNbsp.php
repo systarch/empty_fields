@@ -17,7 +17,7 @@ class EmptyFieldNbsp extends EmptyFieldPluginBase  {
   /**
    * {@inheritdoc}
    */
-  public function react($context) {
+  public function react($context, $definition) {
     return ['#markup' => '&nbsp;'];
   }
 
